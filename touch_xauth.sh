@@ -1,0 +1,1 @@
+sudo rm -r /tmp/.docker.xauth && touch /tmp/.docker.xauth
