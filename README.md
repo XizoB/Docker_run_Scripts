@@ -489,123 +489,89 @@ docker system prune
 
 ## Docker基本命令
 
-有关Docker的学习网络的教程已经很充分了，本脚本只是为了简单的列举一些常用的命令，简单来说跑一个容器有两种方法`docker run`和`dockerfile`
+有关Docker的学习网络的教程已经很充分了，这里只是为了简单的列举一些常用的命令，简单来说你需要掌握两种方法`docker run`和`dockerfile`中的一种就ok
 
-- 个人开发比较成熟的Docker run 脚本为`xizobu.bash`，在第一次运行时需要给脚本添加权限`chmod +x xizobu.sh`，而后直接`./xizobu.bash`
+[Docker简洁教程]: https://docker.easydoc.net/doc/81170005/cCewZWoN/lTKfePfP
+[Docker简洁教程2]: https://cloud.tencent.com/developer/article/1885678
+[个人比较笨，看视频才弄懂]: https://www.bilibili.com/video/BV1og4y1q7M4/?spm_id_from=333.337.search-card.all.click
+
+### 例子
+
+- nginx
 
 ```bash
-TAG="xizobu/galactic:base"
+# 1、搜索镜像 search
+# 2、下载镜像 pull
+# 3、运行测试 docker images
 
-## Forward custom volumes and environment variables
-CUSTOM_VOLUMES=()
-CUSTOM_ENVS=()
-while getopts ":v:e:" opt; do
-    case "${opt}" in
-        v) CUSTOM_VOLUMES+=("${OPTARG}") ;;
-        e) CUSTOM_ENVS+=("${OPTARG}") ;;
-        *)
-            echo >&2 "Usage: ${0} [-v VOLUME] [-e ENV] [TAG] [CMD]"
-            exit 2
-            ;;
-    esac
-done
-shift "$((OPTIND - 1))"
+# 4、创建容器
+docker run -d --name nginx01 -p 8080:80 nginx 
+						# -p 主机端口：容器端口
 
-## Determine TAG and CMD positional arguments
-if [ "${#}" -gt "0" ]; then
-    if [[ $(docker images --format "{{.Tag}}" "${TAG}") =~ (^|[[:space:]])${1}($|[[:space:]]) || $(wget -q https://registry.hub.docker.com/v2/repositories/${TAG}/tags -O - | grep -Poe '(?<=(\"name\":\")).*?(?=\")') =~ (^|[[:space:]])${1}($|[[:space:]]) ]]; then
-        # Use the first argument as a tag is such tag exists either locally or on the remote registry
-        TAG="${TAG}:${1}"
-        CMD=${*:2}
-    else
-        CMD=${*:1}
-    fi
-fi
+# 5、查看容器IP地址
+docker inspect --format '{{ .NetworkSettings.IPAddress }}' 69870487ab71
+docker inspect nginx01 | grep ddress 
+						# grep命令用于查找文件里符合条件的字符串
 
-## GPU，用于容器可以使用本地电脑的显卡
-# Enable GPU either via NVIDIA Container Toolkit or NVIDIA Docker (depending on Docker version)
-if dpkg --compare-versions "$(docker version --format '{{.Server.Version}}')" gt "19.3"; then
-    GPU_OPT="--gpus all"
-else
-    GPU_OPT="--runtime nvidia"
-fi
+# 6、测试
+# 在本地测试端口时候连接
+curl localhost:8080 								
+curl 172.17.0.2:8080
+# 在网址上访问容器
+#http://<host-ip>:8080/ 
+http://localhost:8080/
+# or maybe http://localhost:8080/
+http://192.168.1.105:8080/
 
-## GUI，用于容器可以启动GUI界面
-# To enable GUI, make sure processes in the container can connect to the x server
-XAUTH=/tmp/.docker.xauth
-if [ ! -f ${XAUTH} ]; then
-    touch ${XAUTH}
-    chmod a+r ${XAUTH}
-
-    XAUTH_LIST=$(xauth nlist "${DISPLAY}")
-    if [ -n "${XAUTH_LIST}" ]; then
-        # shellcheck disable=SC2001
-        XAUTH_LIST=$(sed -e 's/^..../ffff/' <<<"${XAUTH_LIST}")
-        echo "${XAUTH_LIST}" | xauth -f ${XAUTH} nmerge -
-    fi
-fi
-
-# GUI-enabling volumes
-GUI_VOLUMES=(
-    "${XAUTH}:${XAUTH}"
-    "/tmp/.X11-unix:/tmp/.X11-unix"
-    "/dev/input:/dev/input"
-)
-# GUI-enabling environment variables
-GUI_ENVS=(
-    XAUTHORITY="${XAUTH}"
-    QT_X11_NO_MITSHM=1
-    DISPLAY="${DISPLAY}"
-)
-
-## Additional volumes
-# Synchronize timezone with host
-CUSTOM_VOLUMES+=("/etc/localtime:/etc/localtime:ro")
-# 工作目录
-CUSTOM_VOLUMES+=("/home/xizobu/Docker_RoboLearn:/root/Docker_RoboLearn")
-# USB热插拔，用于docker容器内可以连接外设USB设备
-CUSTOM_VOLUMES+=("/dev/bus/usb:/dev/bus/usb")
-
-## Additional environment variables
-# Synchronize ROS_DOMAIN_ID with host
-if [ -n "${ROS_DOMAIN_ID}" ]; then
-    CUSTOM_ENVS+=("ROS_DOMAIN_ID=${ROS_DOMAIN_ID}")
-fi
-# Synchronize IGN_PARTITION with host
-if [ -n "${IGN_PARTITION}" ]; then
-    CUSTOM_ENVS+=("IGN_PARTITION=${IGN_PARTITION}")
-fi
-
-
-# Docker Run 主要命令
-DOCKER_RUN_CMD=(
-    docker run  
-    --interactive
-    --tty
-    --detach
-    --network host
-    --ipc host
-    --privileged
-    --restart "always"
-    --name "galactic-robolearn-base"
-    --security-opt "seccomp=unconfined"
-    "${GUI_VOLUMES[@]/#/"--volume "}"
-    "${GUI_ENVS[@]/#/"--env "}"
-    "${GPU_OPT}"
-    "${CUSTOM_VOLUMES[@]/#/"--volume "}"
-    "${CUSTOM_ENVS[@]/#/"--env "}"
-    "${TAG}"
-    "${CMD}"
-)
-
-echo -e "\033[1;30m${DOCKER_RUN_CMD[*]}\033[0m" | xargs
-
-# shellcheck disable=SC2048
-exec ${DOCKER_RUN_CMD[*]}
+# 7、进入容器
+docker exec -it nginx01 /bin/bash
 
 ```
 
-[Xizobu Docker Run Scripts]: https://github.com/XizoB/docker_run_scripts
+- tomcat
+
+```bash
+# 下载在启动
+docker run -it --rm tomcat:9.0
+--rm 一般用来测试，用完即删除
+
+# 启动运行
+docker run -d -p 3355:8080 --name tomcat01 tomcat
+
+# 进入容器
+docker exec -it tomcat01 /bin/bash
+
+
+# 发现问题：1、linux命令少了。2、没有webapps。默认是最小的镜像，所有不必要的都剔除
+# 保证最小可运行环境
+```
+
+- 部署es+kinana
+
+```bash
+# es 暴露的端口非常多
+# es 十分的耗内存
+# es 的数据一般需要放置到安全目录！挂载
+
+# --net somenetwork 网络配置
+
+# 启动
+# 官方命令
+docker run -d --name elasticsearch --net somenetwork -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" elasticsearch:tag
+docker run -d --name elasticsearch -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" elasticsearch:7.6.2
+
+-e 		# 修改参数
+-d 		# 后台启动
+-p 		# 端口映射
+
+# 启动 linux就会卡住 docker stats 查看cpu状态
+# 需要增加内存的限制，修改配置文件 -e 环境配置修改
+docker run -d --name elasticsearch -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" elasticsearch:7.6.2 -e ES_JAVA_OPTS="-Xms64m -Xmx512m"
+
+# 测试
+curl localhost:8080 
+
+```
 
 
 
@@ -932,8 +898,6 @@ docker run -it mycentos:0.1
 # 查看别人镜像怎么制作的
 docker history image[id]
 docker history --no-trunc=true image > image1-dockerfile
-
-
 ```
 
 ### Docker网络
@@ -941,3 +905,126 @@ docker history --no-trunc=true image > image1-dockerfile
 从机器人的角度思考，看一看用于部署集群式机器人之间的通信，可以把一个个容器就看作一台台电脑，容器间的通信啥的
 
 [Docker网络通信学习]: https://zhuanlan.zhihu.com/p/212772001
+
+
+
+### 个人工作环境开发脚本
+
+
+
+- 个人开发比较成熟的Docker run 脚本为`xizobu.bash`，在第一次运行时需要给脚本添加权限`chmod +x xizobu.sh`，而后直接`./xizobu.bash`
+
+```bash
+TAG="xizobu/galactic:base"
+
+## Forward custom volumes and environment variables
+CUSTOM_VOLUMES=()
+CUSTOM_ENVS=()
+while getopts ":v:e:" opt; do
+    case "${opt}" in
+        v) CUSTOM_VOLUMES+=("${OPTARG}") ;;
+        e) CUSTOM_ENVS+=("${OPTARG}") ;;
+        *)
+            echo >&2 "Usage: ${0} [-v VOLUME] [-e ENV] [TAG] [CMD]"
+            exit 2
+            ;;
+    esac
+done
+shift "$((OPTIND - 1))"
+
+## Determine TAG and CMD positional arguments
+if [ "${#}" -gt "0" ]; then
+    if [[ $(docker images --format "{{.Tag}}" "${TAG}") =~ (^|[[:space:]])${1}($|[[:space:]]) || $(wget -q https://registry.hub.docker.com/v2/repositories/${TAG}/tags -O - | grep -Poe '(?<=(\"name\":\")).*?(?=\")') =~ (^|[[:space:]])${1}($|[[:space:]]) ]]; then
+        # Use the first argument as a tag is such tag exists either locally or on the remote registry
+        TAG="${TAG}:${1}"
+        CMD=${*:2}
+    else
+        CMD=${*:1}
+    fi
+fi
+
+## GPU，用于容器可以使用本地电脑的显卡
+# Enable GPU either via NVIDIA Container Toolkit or NVIDIA Docker (depending on Docker version)
+if dpkg --compare-versions "$(docker version --format '{{.Server.Version}}')" gt "19.3"; then
+    GPU_OPT="--gpus all"
+else
+    GPU_OPT="--runtime nvidia"
+fi
+
+## GUI，用于容器可以启动GUI界面
+# To enable GUI, make sure processes in the container can connect to the x server
+XAUTH=/tmp/.docker.xauth
+if [ ! -f ${XAUTH} ]; then
+    touch ${XAUTH}
+    chmod a+r ${XAUTH}
+
+    XAUTH_LIST=$(xauth nlist "${DISPLAY}")
+    if [ -n "${XAUTH_LIST}" ]; then
+        # shellcheck disable=SC2001
+        XAUTH_LIST=$(sed -e 's/^..../ffff/' <<<"${XAUTH_LIST}")
+        echo "${XAUTH_LIST}" | xauth -f ${XAUTH} nmerge -
+    fi
+fi
+
+# GUI-enabling volumes
+GUI_VOLUMES=(
+    "${XAUTH}:${XAUTH}"
+    "/tmp/.X11-unix:/tmp/.X11-unix"
+    "/dev/input:/dev/input"
+)
+# GUI-enabling environment variables
+GUI_ENVS=(
+    XAUTHORITY="${XAUTH}"
+    QT_X11_NO_MITSHM=1
+    DISPLAY="${DISPLAY}"
+)
+
+## Additional volumes
+# Synchronize timezone with host
+CUSTOM_VOLUMES+=("/etc/localtime:/etc/localtime:ro")
+# 工作目录
+CUSTOM_VOLUMES+=("/home/xizobu/Docker_RoboLearn:/root/Docker_RoboLearn")
+# USB热插拔，用于docker容器内可以连接外设USB设备
+CUSTOM_VOLUMES+=("/dev/bus/usb:/dev/bus/usb")
+
+## Additional environment variables
+# Synchronize ROS_DOMAIN_ID with host
+if [ -n "${ROS_DOMAIN_ID}" ]; then
+    CUSTOM_ENVS+=("ROS_DOMAIN_ID=${ROS_DOMAIN_ID}")
+fi
+# Synchronize IGN_PARTITION with host
+if [ -n "${IGN_PARTITION}" ]; then
+    CUSTOM_ENVS+=("IGN_PARTITION=${IGN_PARTITION}")
+fi
+
+
+# Docker Run 主要命令
+DOCKER_RUN_CMD=(
+    docker run  
+    --interactive
+    --tty
+    --detach
+    --network host
+    --ipc host
+    --privileged
+    --restart "always"
+    --name "galactic-robolearn-base"
+    --security-opt "seccomp=unconfined"
+    "${GUI_VOLUMES[@]/#/"--volume "}"
+    "${GUI_ENVS[@]/#/"--env "}"
+    "${GPU_OPT}"
+    "${CUSTOM_VOLUMES[@]/#/"--volume "}"
+    "${CUSTOM_ENVS[@]/#/"--env "}"
+    "${TAG}"
+    "${CMD}"
+)
+
+echo -e "\033[1;30m${DOCKER_RUN_CMD[*]}\033[0m" | xargs
+
+# shellcheck disable=SC2048
+exec ${DOCKER_RUN_CMD[*]}
+
+```
+
+[Xizobu Docker Run Scripts]: https://github.com/XizoB/docker_run_scripts
+
